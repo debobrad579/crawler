@@ -41,13 +41,23 @@ func getHTML(rawURL string) (string, error) {
 	return string(body), nil
 }
 
-func crawlPage(rawBaseURL, rawCurrentURL string, pages map[string]int) {
-	baseURL, err := url.Parse(rawBaseURL)
-	if err != nil {
-		return
-	}
+type config struct {
+	maxPages           int
+	pages              map[string]PageData
+	baseURL            *url.URL
+	mu                 *sync.Mutex
+	concurrencyControl chan struct{}
+	wg                 *sync.WaitGroup
+}
+
+func (cfg *config) crawlPage(rawCurrentURL string) {
+	defer cfg.wg.Done()
+
+	cfg.concurrencyControl <- struct{}{}
+	defer func() { <-cfg.concurrencyControl }()
+
 	currentURL, err := url.Parse(rawCurrentURL)
-	if err != nil || currentURL.Hostname() != baseURL.Hostname() {
+	if err != nil || currentURL.Hostname() != cfg.baseURL.Hostname() {
 		return
 	}
 	normalizedCurrentURL, err := normalizeURL(rawCurrentURL)
@@ -55,27 +65,41 @@ func crawlPage(rawBaseURL, rawCurrentURL string, pages map[string]int) {
 		return
 	}
 
-	if _, ok := pages[normalizedCurrentURL]; ok {
-		pages[normalizedCurrentURL]++
+	if !cfg.addPageVisit(normalizedCurrentURL) {
 		return
-	} else {
-		pages[normalizedCurrentURL] = 1
 	}
 
 	html, err := getHTML(rawCurrentURL)
 	if err != nil {
-		fmt.Printf("an error occured fetching html: %v\n", err)
+		fmt.Println(err)
 		return
 	}
-	fmt.Printf("fetched url: %s\n", rawCurrentURL)
+	fmt.Printf("crawled url: %s\n", rawCurrentURL)
 
 	data, err := extractPageData(html, rawCurrentURL)
 	if err != nil {
-		fmt.Printf("an error occured extracting page data: %v\n", err)
+		fmt.Println(err)
 		return
 	}
 
 	for _, outgoingLink := range data.OutgoingLinks {
-		crawlPage(rawBaseURL, outgoingLink, pages)
+		cfg.wg.Add(1)
+		go cfg.crawlPage(outgoingLink)
 	}
+}
+
+func (cfg *config) addPageVisit(normalizedURL string) (isFirst bool) {
+	cfg.mu.Lock()
+	defer cfg.mu.Unlock()
+
+	if len(cfg.pages) >= cfg.maxPages {
+		return false
+	}
+
+	if _, ok := cfg.pages[normalizedURL]; !ok {
+		cfg.pages[normalizedURL] = PageData{}
+		return true
+	}
+
+	return false
 }
