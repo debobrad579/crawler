@@ -260,7 +260,10 @@ func TestExtractPageData(t *testing.T) {
 
 	urlStruct, _ := url.Parse(inputURL)
 
-	actual := extractPageData(inputBody, inputURL)
+	actual, err := extractPageData(inputBody, inputURL)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	expected := PageData{
 		URL:            urlStruct,
@@ -270,7 +273,7 @@ func TestExtractPageData(t *testing.T) {
 		ImageURLs:      []string{"https://crawler-test.com/image1.jpg"},
 	}
 
-	if !reflect.DeepEqual(actual, expected) {
-		t.Errorf("expected %+v, got %+v", expected, actual)
+	if !reflect.DeepEqual(*actual, expected) {
+		t.Errorf("expected %+v, got %+v", expected, *actual)
 	}
 }

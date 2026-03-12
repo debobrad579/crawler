@@ -50,7 +50,13 @@ func getURLsFromHTML(htmlBody string, baseURL *url.URL) ([]string, error) {
 		}
 
 		if strings.HasPrefix(href, "/") {
-			urls = append(urls, baseURL.String()+href)
+			hrefStruct, err := url.Parse(href)
+			if err != nil {
+				return
+			}
+
+			absoluteURL := baseURL.ResolveReference(hrefStruct)
+			urls = append(urls, absoluteURL.String())
 		} else {
 			urls = append(urls, href)
 		}
@@ -91,17 +97,27 @@ type PageData struct {
 	ImageURLs      []string
 }
 
-func extractPageData(html, pageURL string) PageData {
-	urlStruct, _ := url.Parse(pageURL)
+func extractPageData(html, pageURL string) (*PageData, error) {
+	urlStruct, err := url.Parse(pageURL)
+	if err != nil {
+		return nil, err
+	}
 
-	outgoingLinks, _ := getURLsFromHTML(html, urlStruct)
+	outgoingLinks, err := getURLsFromHTML(html, urlStruct)
+	if err != nil {
+		return nil, err
+	}
+
 	imageURLs, _ := getImagesFromHTML(html, urlStruct)
+	if err != nil {
+		return nil, err
+	}
 
-	return PageData{
+	return &PageData{
 		URL:            urlStruct,
 		Heading:        getHeadingFromHTML(html),
 		FirstParagraph: getFirstParagraphFromHTML(html),
 		OutgoingLinks:  outgoingLinks,
 		ImageURLs:      imageURLs,
-	}
+	}, nil
 }
