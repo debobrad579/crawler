@@ -59,4 +59,6 @@ func main() {
 	cfg.wg.Add(1)
 	go cfg.crawlPage(rawBaseURL)
 	cfg.wg.Wait()
+
+	writeJSONReport(cfg.pages, safeFilenameFromURL(baseURL))
 }

@@ -82,6 +82,8 @@ func (cfg *config) crawlPage(rawCurrentURL string) {
 		return
 	}
 
+	cfg.pages[normalizedCurrentURL] = *data
+
 	for _, outgoingLink := range data.OutgoingLinks {
 		cfg.wg.Add(1)
 		go cfg.crawlPage(outgoingLink)
